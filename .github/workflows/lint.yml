@@ -1,0 +1,101 @@
+name: Lint
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: Solution to run linting against
+        required: true
+        type: string
+
+    secrets:
+      github-token:
+        description: secrets.BUILD_GITHUB_TOKEN
+        required: true
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.github-token }}
+      GITHUB_USERNAME: GitHub
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Restore
+        run: dotnet restore -v q
+
+      - name: Build
+        run: dotnet build ${{ inputs.solution }} --no-restore -v q
+
+      - name: Install Tool
+        run: dotnet tool install -g JetBrains.ReSharper.GlobalTools
+
+      - name: Inspect Code
+        run: jb inspectcode ${{ inputs.solution }} --no-build -o=inspection_results.xml
+
+      - name: Parse Results
+        shell: pwsh
+        run: |
+          $xml = Select-Xml -Path inspection_results.xml -XPath '/Report/IssueTypes/IssueType' | ForEach-Object { @{
+                  Id          = $_.Node.Attributes['Id'].Value
+                  Category    = $_.Node.Attributes['Category'].Value
+                  CategoryId  = $_.Node.Attributes['CategoryId'].Value
+                  Description = $_.Node.Attributes['Description'].Value
+                  Severity    = $_.Node.Attributes['Severity'].Value
+              }
+          }
+
+          $map = @{}
+          foreach ($item in $xml) {
+              $map[$item.Id] = $item
+          }
+
+          $issues = Select-Xml -Path inspection_results.xml -XPath '/Report/Issues/Project/Issue' | ForEach-Object { @{
+                  Type    = $map[$_.Node.Attributes['TypeId'].Value]
+                  File    = $_.Node.Attributes['File'].Value
+                  Offset  = $_.Node.Attributes['Offset'].Value
+                  Line    = $_.Node.Attributes['Line'].Value
+                  Message = $_.Node.Attributes['Message'].Value
+              }
+          }
+
+          $i = 1
+          foreach ($issue in $issues) {
+              $i += 1
+              $t = $issue.Offset.Split("-")
+              Write-Host "::notice file=$($issue.File),line=$($issue.Line),col=$($t[0]),endColumn=$($t[1]),title=$($issue.Type.Category)::$($issue.Message)"
+              if($i -gt 9 -and $issues.Count -ne 9) {
+                  Write-Host "::notice title=$($issues.Count - 9) other issues::$($issues.Count - 9) other issues"
+                  break
+              }
+          }
+
+      - uses: actions/upload-artifact@v2
+        if: always()
+        with:
+          name: code_analysis
+          path: inspection_results.xml
+
+  style:
+    name: Style
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.github-token }}
+      GITHUB_USERNAME: GitHub
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Tool
+        run: dotnet tool install -g JetBrains.ReSharper.GlobalTools
+
+      - name: Check Code Style
+        shell: pwsh
+        run: |
+          git fetch origin risk
+          $files = $(git diff --name-only origin/risk) -join ';'
+          jb cleanupcode ${{ inputs.solution }} --include=$files
+          if ($(git status --porcelain)) {
+              Write-Host "::error::Code style check failed"
+              exit 1
+          }
