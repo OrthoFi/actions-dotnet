@@ -95,6 +95,7 @@ jobs:
           git fetch origin risk
           $files = $(git diff --name-only origin/risk) -join ';'
           jb cleanupcode ${{ inputs.solution }} --include=$files
+          git add .
           if ($(git status --porcelain)) {
               Write-Host "::error::Code style check failed"
               exit 1
