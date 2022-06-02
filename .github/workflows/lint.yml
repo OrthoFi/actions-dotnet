@@ -89,6 +89,12 @@ jobs:
       - name: Install Tool
         run: dotnet tool install -g JetBrains.ReSharper.GlobalTools
 
+      - name: Configure GitHub User
+        shell: pwsh
+        run: |
+          git config user.name "github-actions"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Check Code Style
         shell: pwsh
         run: |
@@ -98,5 +104,12 @@ jobs:
           git add .
           if ($(git status --porcelain)) {
               Write-Host "::error::Code style check failed"
+              git diff HEAD  > fix_style_issues.patch
               exit 1
           }
+
+      - uses: actions/upload-artifact@v2
+        if: always()
+        with:
+          name: patch
+          path: "*.patch"
