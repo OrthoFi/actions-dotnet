@@ -29,14 +29,14 @@ jobs:
 
       - uses: actions/checkout@v3
 
-      - name: Cache SonarCloud packages
+      - name: Cache SonarCloud Packages
         uses: actions/cache@v3
         with:
           path: ~/sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      - name: Cache SonarCloud scanner
+      - name: Cache SonarCloud Scanner
         id: cache-sonar-scanner
         uses: actions/cache@v3
         with:
@@ -51,13 +51,13 @@ jobs:
           New-Item -Path ./.sonar/scanner -ItemType Directory
           dotnet tool update dotnet-sonarscanner --tool-path ./.sonar/scanner
 
-      - name: Build and analyze
+      - name: Build and Analyze
         env:
           GITHUB_TOKEN: ${{ secrets.github-token }}
           SONAR_TOKEN: ${{ secrets.sonar-token }}
         shell: pwsh
         run: |
-          .\.sonar\scanner\dotnet-sonarscanner begin /v:${{ github.sha }}
+          .\.sonar\scanner\dotnet-sonarscanner begin /v:${{ github.sha }} /s:../../../sonar-project.properties
           dotnet build ${{ inputs.solution }} -v q
           .\.sonar\scanner\dotnet-sonarscanner end
 
