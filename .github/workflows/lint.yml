@@ -11,6 +11,9 @@ on:
       github-token:
         description: secrets.BUILD_GITHUB_TOKEN
         required: true
+      sonar-token:
+        description: secrets.SONAR_TOKEN
+        required: true
 
 jobs:
   quality:
@@ -20,59 +23,49 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.github-token }}
       GITHUB_USERNAME: GitHub
     steps:
+      - uses: actions/setup-java@v1
+        with:
+          java-version: 1.11
+
       - uses: actions/checkout@v3
 
-      - name: Restore
-        run: dotnet restore -v q
+      - name: Cache SonarCloud Packages
+        uses: actions/cache@v3
+        with:
+          path: ~/sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
 
-      - name: Build
-        run: dotnet build ${{ inputs.solution }} --no-restore -v q
+      - name: Cache SonarCloud Scanner
+        id: cache-sonar-scanner
+        uses: actions/cache@v3
+        with:
+          path: ./.sonar/scanner
+          key: ${{ runner.os }}-sonar-scanner
+          restore-keys: ${{ runner.os }}-sonar-scanner
 
-      - name: Install Tool
-        run: dotnet tool install -g JetBrains.ReSharper.GlobalTools
-
-      - name: Inspect Code
-        run: jb inspectcode ${{ inputs.solution }} --no-build -o=inspection_results.xml
-
-      - name: Parse Results
+      - name: Install SonarCloud scanner
+        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $xml = Select-Xml -Path inspection_results.xml -XPath '/Report/IssueTypes/IssueType' | ForEach-Object { @{
-                  Id          = $_.Node.Attributes['Id'].Value
-                  Category    = $_.Node.Attributes['Category'].Value
-                  CategoryId  = $_.Node.Attributes['CategoryId'].Value
-                  Description = $_.Node.Attributes['Description'].Value
-                  Severity    = $_.Node.Attributes['Severity'].Value
-              }
-          }
+          New-Item -Path ./.sonar/scanner -ItemType Directory
+          dotnet tool update dotnet-sonarscanner --tool-path ./.sonar/scanner
 
-          $map = @{}
-          foreach ($item in $xml) {
-              $map[$item.Id] = $item
-          }
+      - name: Build and Analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.github-token }}
+          SONAR_TOKEN: ${{ secrets.sonar-token }}
+        shell: pwsh
+        run: |
+          $key = "${{ github.repository	}}".Replace("/", "_")
 
-          $issues = Select-Xml -Path inspection_results.xml -XPath '/Report/Issues/Project/Issue' | ForEach-Object { @{
-                  Type    = $map[$_.Node.Attributes['TypeId'].Value]
-                  File    = $_.Node.Attributes['File'].Value
-                  Offset  = $_.Node.Attributes['Offset'].Value
-                  Line    = $_.Node.Attributes['Line'].Value
-                  Message = $_.Node.Attributes['Message'].Value
-              }
-          }
+          .\.sonar\scanner\dotnet-sonarscanner begin `
+            /o:orthofi `
+            /k:$key `
+            /d:sonar.host.url=https://sonarcloud.io `
+            /d:sonar.login="${{ secrets.sonar-token }}"
 
-          $i = 1
-          foreach ($issue in $issues) {
-              $i += 1
-              $t = $issue.Offset.Split("-")
-              Write-Host "::notice file=$($issue.File),line=$($issue.Line),col=$($t[0]),endColumn=$($t[1]),title=$($issue.Type.Category)::$($issue.Message)"
-              if($i -gt 9 -and $issues.Count -ne 9) {
-                  Write-Host "::notice title=$($issues.Count - 9) other issues::$($issues.Count - 9) other issues"
-                  break
-              }
-          }
+          dotnet build ${{ inputs.solution }} -v q
 
-      - uses: actions/upload-artifact@v2
-        if: always()
-        with:
-          name: code_analysis
-          path: inspection_results.xml
+          .\.sonar\scanner\dotnet-sonarscanner end `
+            /d:sonar.login="${{ secrets.sonar-token }}"
