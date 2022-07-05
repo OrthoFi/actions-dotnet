@@ -57,7 +57,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.sonar-token }}
         shell: pwsh
         run: |
-          .\.sonar\scanner\dotnet-sonarscanner begin /v:${{ github.sha }} /s:../../../sonar-project.properties
+          .\.sonar\scanner\dotnet-sonarscanner begin /v:${{ github.sha }} /s:sonar-project.properties
           dotnet build ${{ inputs.solution }} -v q
           .\.sonar\scanner\dotnet-sonarscanner end
 
