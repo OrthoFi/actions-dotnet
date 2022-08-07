@@ -1,0 +1,62 @@
+name: Package
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: Solution to package
+        required: false
+        type: string
+
+    secrets:
+      github-token:
+        description: secrets.BUILD_GITHUB_TOKEN
+        required: true
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure GitHub User
+        shell: pwsh
+        run: |
+          git config user.name "github-actions"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate Version
+        shell: pwsh
+        run: |
+          npm i standard-version
+
+          $branch = "${{ github.ref }}".Replace("refs/heads/", "")
+          if($branch -eq "main") {
+            npx standard-version
+          }
+          else {
+            npx standard-version -p "${branch}.${{ github.run_id }}"
+          }
+
+      - name: Package
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.github-token }}
+          GITHUB_USERNAME: GitHub
+        run: dotnet pack ${{ inputs.solution }} -o out -c Release
+
+      - name: Push NuGet Packages
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.github-token }}
+          GITHUB_USERNAME: GitHub
+        run: dotnet nuget push "out/*.nupkg" -s GitHub -k ${{ secrets.github-token }}
+
+      - name: Push Tags
+        shell: pwsh
+        run: |
+          if("${{ github.ref }}" -eq "refs/heads/main") {
+            git push --follow-tags
+          }
