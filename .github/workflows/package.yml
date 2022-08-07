@@ -35,10 +35,7 @@ jobs:
 
           $branch = "${{ github.ref }}".Replace("refs/heads/", "")
           if($branch -eq "main") {
-            npx standard-version --releaseCommitMessageFormat "chore(release): {{currentTag}}`
-            `
-            [SKIP CI]`
-            "
+            npx standard-version --releaseCommitMessageFormat "chore(release): {{currentTag}} [SKIP CI]"
           }
           else {
             npx standard-version -p "${branch}.${{ github.run_id }}"
