@@ -46,7 +46,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.github-token }}
           GITHUB_USERNAME: GitHub
-        run: dotnet pack ${{ inputs.solution }} -o out -c Release
+        run: dotnet pack ${{ inputs.solution }} /p:PublishDir=out -c Release
 
       - name: Push NuGet Packages
         shell: pwsh
