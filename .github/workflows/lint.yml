@@ -7,20 +7,12 @@ on:
         required: true
         type: string
 
-    secrets:
-      github-token:
-        description: secrets.BUILD_GITHUB_TOKEN
-        required: true
-      sonar-token:
-        description: secrets.SONAR_TOKEN
-        required: true
-
 jobs:
   quality:
     name: Quality
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ secrets.github-token }}
+      GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
       GITHUB_USERNAME: GitHub
     steps:
       - uses: actions/setup-java@v1
@@ -53,8 +45,8 @@ jobs:
 
       - name: Build and Analyze
         env:
-          GITHUB_TOKEN: ${{ secrets.github-token }}
-          SONAR_TOKEN: ${{ secrets.sonar-token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: pwsh
         run: |
           $key = "${{ github.repository	}}".Replace("/", "_")
@@ -63,9 +55,9 @@ jobs:
             /o:orthofi `
             /k:$key `
             /d:sonar.host.url=https://sonarcloud.io `
-            /d:sonar.login="${{ secrets.sonar-token }}"
+            /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
 
           dotnet build ${{ inputs.solution }} -v q
 
           .\.sonar\scanner\dotnet-sonarscanner end `
-            /d:sonar.login="${{ secrets.sonar-token }}"
+            /d:sonar.login="${{ secrets.SONAR_TOKEN }}"

@@ -7,11 +7,6 @@ on:
         required: false
         type: string
 
-    secrets:
-      github-token:
-        description: secrets.BUILD_GITHUB_TOKEN
-        required: true
-
 jobs:
   publish:
     name: Publish
@@ -20,7 +15,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.github-token }}
+          token: ${{ secrets.BUILD_GITHUB_TOKEN }}
 
       - name: Configure GitHub User
         shell: pwsh
@@ -44,16 +39,16 @@ jobs:
       - name: Package
         shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.github-token }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
           GITHUB_USERNAME: GitHub
         run: dotnet pack ${{ inputs.solution }} --property PackageOutputPath=..\out -c Release
 
       - name: Push NuGet Packages
         shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.github-token }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
           GITHUB_USERNAME: GitHub
-        run: dotnet nuget push "out/*.nupkg" -s GitHub -k ${{ secrets.github-token }}
+        run: dotnet nuget push "out/*.nupkg" -s GitHub -k ${{ secrets.BUILD_GITHUB_TOKEN }}
 
       - name: Push Tags
         shell: pwsh
